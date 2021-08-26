@@ -14,7 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/greenplum-db/gp-common-go-libs/gplog"
-	"github.com/inhies/go-bytesize"
 	"github.com/urfave/cli"
 )
 
@@ -28,13 +27,13 @@ func SetupPluginForRestore(c *cli.Context) error {
 }
 
 func RestoreFile(c *cli.Context) error {
-	config, sess, err := readConfigAndStartSession(c, Gprestore)
+	config, sess, err := readConfigAndStartSession(c)
 	if err != nil {
 		return err
 	}
 	fileName := c.Args().Get(1)
-	bucket := config.Options["bucket"]
-	fileKey := GetS3Path(config.Options["folder"], fileName)
+	bucket := config.Options.Bucket
+	fileKey := GetS3Path(config.Options.Folder, fileName)
 	file, err := os.Create(fileName)
 	defer file.Close()
 	if err != nil {
@@ -57,12 +56,12 @@ func RestoreFile(c *cli.Context) error {
 func RestoreDirectory(c *cli.Context) error {
 	start := time.Now()
 	totalBytes := int64(0)
-	config, sess, err := readConfigAndStartSession(c, Gprestore)
+	config, sess, err := readConfigAndStartSession(c)
 	if err != nil {
 		return err
 	}
 	dirName := c.Args().Get(1)
-	bucket := config.Options["bucket"]
+	bucket := config.Options.Bucket
 	gplog.Verbose("Restore Directory '%s' from S3", dirName)
 	gplog.Verbose("S3 Location = s3://%s/%s", bucket, dirName)
 	gplog.Info("dirKey = %s\n", dirName)
@@ -115,7 +114,7 @@ func RestoreDirectoryParallel(c *cli.Context) error {
 	start := time.Now()
 	totalBytes := int64(0)
 	parallel := 5
-	config, sess, err := readConfigAndStartSession(c, Gprestore)
+	config, sess, err := readConfigAndStartSession(c)
 	if err != nil {
 		return err
 	}
@@ -123,7 +122,7 @@ func RestoreDirectoryParallel(c *cli.Context) error {
 	if len(c.Args()) == 3 {
 		parallel, _ = strconv.Atoi(c.Args().Get(2))
 	}
-	bucket := config.Options["bucket"]
+	bucket := config.Options.Bucket
 	gplog.Verbose("Restore Directory Parallel '%s' from S3", dirName)
 	gplog.Verbose("S3 Location = s3://%s/%s", bucket, dirName)
 	fmt.Printf("dirKey = %s\n", dirName)
@@ -196,13 +195,13 @@ func RestoreDirectoryParallel(c *cli.Context) error {
 }
 
 func RestoreData(c *cli.Context) error {
-	config, sess, err := readConfigAndStartSession(c, Gprestore)
+	config, sess, err := readConfigAndStartSession(c)
 	if err != nil {
 		return err
 	}
 	dataFile := c.Args().Get(1)
-	bucket := config.Options["bucket"]
-	fileKey := GetS3Path(config.Options["folder"], dataFile)
+	bucket := config.Options.Bucket
+	fileKey := GetS3Path(config.Options.Folder, dataFile)
 	bytes, elapsed, err := downloadFile(sess, config, bucket, fileKey, os.Stdout)
 	if err != nil {
 		return err
@@ -223,22 +222,16 @@ func downloadFile(sess *session.Session, config *PluginConfig, bucket string, fi
 	file *os.File) (int64, time.Duration, error) {
 
 	start := time.Now()
-	downloadChunkSize, err := GetDownloadChunkSize(config)
-	if err != nil {
-		return 0, -1, err
-	}
-	downloadConcurrency, err := GetDownloadConcurrency(config)
-	if err != nil {
-		return 0, -1, err
-	}
-	downloader := s3manager.NewDownloader(sess)
+	downloader := s3manager.NewDownloader(sess, func(u *s3manager.Downloader) {
+		u.PartSize = config.Options.DownloadChunkSize
+	})
 
 	totalBytes, err := getFileSize(downloader.S3, bucket, fileKey)
 	if err != nil {
 		return 0, -1, err
 	}
 	gplog.Verbose("File %s size = %d bytes", filepath.Base(fileKey), totalBytes)
-	if totalBytes <= downloadChunkSize {
+	if totalBytes <= config.Options.DownloadChunkSize {
 		buffer := &aws.WriteAtBuffer{}
 		if _, err = downloader.Download(
 			buffer,
@@ -252,8 +245,7 @@ func downloadFile(sess *session.Session, config *PluginConfig, bucket string, fi
 			return 0, -1, err
 		}
 	} else {
-		return downloadFileInParallel(downloader, downloadConcurrency, downloadChunkSize, totalBytes, bucket, fileKey,
-			file)
+		return downloadFileInParallel(sess, config.Options.DownloadConcurrency, config.Options.DownloadChunkSize, totalBytes, bucket, fileKey, file)
 	}
 	return totalBytes, time.Since(start), err
 }
@@ -261,7 +253,7 @@ func downloadFile(sess *session.Session, config *PluginConfig, bucket string, fi
 /*
  * Performs ranged requests for the file while exploiting parallelism between the copy and download tasks
  */
-func downloadFileInParallel(downloader *s3manager.Downloader, downloadConcurrency int, downloadChunkSize int64,
+func downloadFileInParallel(sess *session.Session, downloadConcurrency int, downloadChunkSize int64,
 	totalBytes int64, bucket string, fileKey string, file *os.File) (int64, time.Duration, error) {
 
 	var finalErr error
@@ -300,17 +292,27 @@ func downloadFileInParallel(downloader *s3manager.Downloader, downloadConcurrenc
 		buffer := make([]byte, downloadChunkSize)
 		downloadBuffers <- buffer
 	}
+	// Download concurrency is handled on our end hence we don't need to set concurrency
+	downloader := s3manager.NewDownloader(sess, func(u *s3manager.Downloader) {
+		u.PartSize = downloadChunkSize
+		u.Concurrency = 1
+	})
+	gplog.Debug("Downloading file %s with chunksize %d and concurrency %d",
+		filepath.Base(fileKey), downloadChunkSize, numberOfWorkers)
 
 	for i := 0; i < numberOfWorkers; i++ {
 		go func(id int) {
 			for j := range jobs {
-				buffer := <- downloadBuffers
+				buffer := <-downloadBuffers
 				chunkStart := time.Now()
 				byteRange := fmt.Sprintf("bytes=%d-%d", j.startByte, j.endByte)
-				if j.endByte - j.startByte + 1 != downloadChunkSize {
-					buffer = make([]byte, j.endByte - j.startByte + 1)
+				if j.endByte-j.startByte+1 != downloadChunkSize {
+					buffer = make([]byte, j.endByte-j.startByte+1)
 				}
 				bufferPointers[j.chunkIndex] = &buffer
+				gplog.Debug("Worker %d (chunk %d) for %s with partsize %d and concurrency %d",
+					id, j.chunkIndex, filepath.Base(fileKey),
+					downloader.PartSize, downloader.Concurrency)
 				chunkBytes, err := downloader.Download(
 					aws.NewWriteAtBuffer(buffer),
 					&s3.GetObjectInput{
@@ -351,28 +353,4 @@ func downloadFileInParallel(downloader *s3manager.Downloader, downloadConcurrenc
 
 	waitGroup.Wait()
 	return totalBytes, time.Since(start), finalErr
-}
-
-func GetDownloadChunkSize(config *PluginConfig) (int64, error) {
-	downloadChunkSize := DownloadChunkSize
-	if sizeFromConfig, ok := config.Options["restore_multipart_chunksize"]; ok {
-		size, err := bytesize.Parse(sizeFromConfig)
-		if err != nil {
-			return 0, err
-		}
-		downloadChunkSize = int64(size)
-	}
-	return downloadChunkSize, nil
-}
-
-func GetDownloadConcurrency(config *PluginConfig) (int, error) {
-	downloadConcurrency := Concurrency
-	if val, ok := config.Options["restore_max_concurrent_requests"]; ok {
-		r, err := strconv.Atoi(val)
-		if err != nil {
-			return 0, err
-		}
-		downloadConcurrency = r
-	}
-	return downloadConcurrency, nil
 }
