@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/greenplum-db/gp-common-go-libs/gplog"
 	"github.com/greenplum-db/gp-common-go-libs/testhelper"
 	"github.com/greenplum-db/gpbackup-s3-plugin/s3plugin"
 	"github.com/urfave/cli"
@@ -23,6 +24,7 @@ func TestCluster(t *testing.T) {
 var _ = Describe("s3_plugin tests", func() {
 	var pluginConfig *s3plugin.PluginConfig
 	var opts *s3plugin.PluginOptions
+	gplog.InitializeLogging("gpbackup_s3_plugin_test", "")
 	BeforeEach(func() {
 		pluginConfig = &s3plugin.PluginConfig{
 			ExecutablePath: "/tmp/location",
