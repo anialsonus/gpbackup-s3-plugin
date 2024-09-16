@@ -82,6 +82,12 @@ var _ = Describe("s3_plugin tests", func() {
 				Expect(err).To(BeNil())
 				Expect(opts.Encryption).To(Equal("on"))
 			})
+			It(`sets logger_verbosity to default value "info" if none is specified`, func() {
+				opts.LoggerVerbosity = ""
+				err := s3plugin.InitializeAndValidateConfig(pluginConfig)
+				Expect(err).To(BeNil())
+				Expect(opts.LoggerVerbosity).To(Equal("info"))
+			})
 			It("sets backup upload chunk size to default if BackupMultipartChunkSize is not specified", func() {
 				opts.BackupMultipartChunksize = ""
 				err := s3plugin.InitializeAndValidateConfig(pluginConfig)
@@ -160,6 +166,16 @@ var _ = Describe("s3_plugin tests", func() {
 		})
 		It("returns error when the encryption value is invalid", func() {
 			opts.Encryption = "invalid_value"
+			err := s3plugin.InitializeAndValidateConfig(pluginConfig)
+			Expect(err).To(HaveOccurred())
+		})
+		It("returns error when the logger_verbosity value is invalid", func() {
+			opts.LoggerVerbosity = "invalid_value"
+			err := s3plugin.InitializeAndValidateConfig(pluginConfig)
+			Expect(err).To(HaveOccurred())
+		})
+		It("returns error when the logger_verbosity value is invalid", func() {
+			opts.LoggerVerbosity = "invalid_value"
 			err := s3plugin.InitializeAndValidateConfig(pluginConfig)
 			Expect(err).To(HaveOccurred())
 		})
