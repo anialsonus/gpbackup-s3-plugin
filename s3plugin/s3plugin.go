@@ -57,6 +57,7 @@ type PluginOptions struct {
 	BackupMultipartChunksize     string `yaml:"backup_multipart_chunksize"`
 	Bucket                       string `yaml:"bucket"`
 	Encryption                   string `yaml:"encryption"`
+	LoggerVerbosity              string `yaml:"logger_verbosity"`
 	Endpoint                     string `yaml:"endpoint"`
 	Folder                       string `yaml:"folder"`
 	HttpProxy                    string `yaml:"http_proxy"`
@@ -99,6 +100,20 @@ func readAndValidatePluginConfig(configFile string) (*PluginConfig, error) {
 	return config, nil
 }
 
+func SetLoggerVerbosity(loggerVerbosity string) {
+	gplog.SetLogFileVerbosity(gplog.LOGINFO)
+	if loggerVerbosity == "error" {
+		gplog.SetVerbosity(gplog.LOGERROR)
+		gplog.SetLogFileVerbosity(gplog.LOGERROR)
+	} else if loggerVerbosity == "debug" {
+		gplog.SetVerbosity(gplog.LOGDEBUG)
+		gplog.SetLogFileVerbosity(gplog.LOGDEBUG)
+	} else if loggerVerbosity == "verbose" {
+		gplog.SetVerbosity(gplog.LOGVERBOSE)
+		gplog.SetLogFileVerbosity(gplog.LOGVERBOSE)
+	}
+}
+
 func InitializeAndValidateConfig(config *PluginConfig) error {
 	var err error
 	var errTxt string
@@ -110,6 +125,9 @@ func InitializeAndValidateConfig(config *PluginConfig) error {
 	}
 	if opt.Encryption == "" {
 		opt.Encryption = "on"
+	}
+	if opt.LoggerVerbosity == "" {
+		opt.LoggerVerbosity = "info"
 	}
 	opt.UploadChunkSize = DefaultUploadChunkSize
 	opt.UploadConcurrency = DefaultConcurrency
@@ -139,6 +157,10 @@ func InitializeAndValidateConfig(config *PluginConfig) error {
 	if opt.Encryption != "on" && opt.Encryption != "off" {
 		errTxt += fmt.Sprintf("Invalid encryption configuration. Valid choices are on or off.\n")
 	}
+	if opt.LoggerVerbosity != "error" && opt.LoggerVerbosity != "info" && opt.LoggerVerbosity != "verbose" && opt.LoggerVerbosity != "debug" {
+		errTxt += fmt.Sprintf("Invalid logger_verbosity configuration. Valid choices are error, info, verbose or debug.\n")
+	}
+	SetLoggerVerbosity(opt.LoggerVerbosity)
 	if opt.BackupMultipartChunksize != "" {
 		chunkSize, err := bytesize.Parse(opt.BackupMultipartChunksize)
 		if err != nil {
