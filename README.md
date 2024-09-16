@@ -53,6 +53,7 @@ options:
   bucket: <s3-bucket>
   folder: <s3-location>
   encryption: [on|off]
+  logger_verbosity: [error|info|verbose|debug]
   http_proxy: <http-proxy>
  ```
 
@@ -69,6 +70,7 @@ Below are the s3 plugin options
 | `bucket` | name of the S3 bucket. The bucket must exist with the necessary permissions |
 | `folder` | S3 location for backups. During a backup operation, the plugin creates the S3 location if it does not exist in the S3 bucket. |
 | `encryption` | Enable or disable SSL encryption to connect to S3. Valid values are on and off. On by default |
+| `logger_verbosity` | logger verbosity level. Valid values are error, info, verbose and debug. info by default |
 | `http_proxy` | your http proxy url |
 | `backup_max_concurrent_requests` | concurrency level for any file's backup request |
 | `backup_multipart_chunksize` | maximum buffer/chunk size for multipart transfers during backup |
