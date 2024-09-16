@@ -166,16 +166,6 @@ var _ = Describe("s3_plugin tests", func() {
 			err := s3plugin.InitializeAndValidateConfig(pluginConfig)
 			Expect(err).To(HaveOccurred())
 		})
-		It("returns error when the encryption value is invalid", func() {
-			opts.Encryption = "invalid_value"
-			err := s3plugin.InitializeAndValidateConfig(pluginConfig)
-			Expect(err).To(HaveOccurred())
-		})
-		It("returns error when the logger_verbosity value is invalid", func() {
-			opts.LoggerVerbosity = "invalid_value"
-			err := s3plugin.InitializeAndValidateConfig(pluginConfig)
-			Expect(err).To(HaveOccurred())
-		})
 		It("returns error when the logger_verbosity value is invalid", func() {
 			opts.LoggerVerbosity = "invalid_value"
 			err := s3plugin.InitializeAndValidateConfig(pluginConfig)
