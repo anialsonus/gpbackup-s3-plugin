@@ -89,6 +89,37 @@ var _ = Describe("s3_plugin tests", func() {
 				err := s3plugin.InitializeAndValidateConfig(pluginConfig)
 				Expect(err).To(BeNil())
 				Expect(opts.LoggerVerbosity).To(Equal("info"))
+				Expect(gplog.GetVerbosity()).To(Equal(gplog.LOGINFO))
+				Expect(gplog.GetLogFileVerbosity()).To(Equal(gplog.LOGINFO))
+
+			})
+			It(`sets logger_verbosity to value "info"`, func() {
+				opts.LoggerVerbosity = "info"
+				err := s3plugin.InitializeAndValidateConfig(pluginConfig)
+				Expect(err).To(BeNil())
+				Expect(gplog.GetVerbosity()).To(Equal(gplog.LOGINFO))
+				Expect(gplog.GetLogFileVerbosity()).To(Equal(gplog.LOGINFO))
+			})
+			It(`sets logger_verbosity to value "error"`, func() {
+				opts.LoggerVerbosity = "error"
+				err := s3plugin.InitializeAndValidateConfig(pluginConfig)
+				Expect(err).To(BeNil())
+				Expect(gplog.GetVerbosity()).To(Equal(gplog.LOGERROR))
+				Expect(gplog.GetLogFileVerbosity()).To(Equal(gplog.LOGERROR))
+			})
+			It(`sets logger_verbosity to value "debug"`, func() {
+				opts.LoggerVerbosity = "debug"
+				err := s3plugin.InitializeAndValidateConfig(pluginConfig)
+				Expect(err).To(BeNil())
+				Expect(gplog.GetVerbosity()).To(Equal(gplog.LOGDEBUG))
+				Expect(gplog.GetLogFileVerbosity()).To(Equal(gplog.LOGDEBUG))
+			})
+			It(`sets logger_verbosity to value "verbose"`, func() {
+				opts.LoggerVerbosity = "verbose"
+				err := s3plugin.InitializeAndValidateConfig(pluginConfig)
+				Expect(err).To(BeNil())
+				Expect(gplog.GetVerbosity()).To(Equal(gplog.LOGVERBOSE))
+				Expect(gplog.GetLogFileVerbosity()).To(Equal(gplog.LOGVERBOSE))
 			})
 			It("sets backup upload chunk size to default if BackupMultipartChunkSize is not specified", func() {
 				opts.BackupMultipartChunksize = ""
