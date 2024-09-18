@@ -73,6 +73,13 @@ type PluginOptions struct {
 	DownloadConcurrency int
 }
 
+var loggerVerbosityLut = map[string]int{
+	"error":   gplog.LOGERROR,
+	"info":    gplog.LOGINFO,
+	"verbose": gplog.LOGVERBOSE,
+	"debug":   gplog.LOGDEBUG,
+}
+
 func CleanupPlugin(c *cli.Context) error {
 	return nil
 }
@@ -100,18 +107,9 @@ func readAndValidatePluginConfig(configFile string) (*PluginConfig, error) {
 	return config, nil
 }
 
-func SetLoggerVerbosity(loggerVerbosity string) {
-	gplog.SetLogFileVerbosity(gplog.LOGINFO)
-	if loggerVerbosity == "error" {
-		gplog.SetVerbosity(gplog.LOGERROR)
-		gplog.SetLogFileVerbosity(gplog.LOGERROR)
-	} else if loggerVerbosity == "debug" {
-		gplog.SetVerbosity(gplog.LOGDEBUG)
-		gplog.SetLogFileVerbosity(gplog.LOGDEBUG)
-	} else if loggerVerbosity == "verbose" {
-		gplog.SetVerbosity(gplog.LOGVERBOSE)
-		gplog.SetLogFileVerbosity(gplog.LOGVERBOSE)
-	}
+func SetLoggerVerbosity(verbosity int) {
+	gplog.SetVerbosity(verbosity)
+	gplog.SetLogFileVerbosity(verbosity)
 }
 
 func InitializeAndValidateConfig(config *PluginConfig) error {
@@ -157,10 +155,11 @@ func InitializeAndValidateConfig(config *PluginConfig) error {
 	if opt.Encryption != "on" && opt.Encryption != "off" {
 		errTxt += fmt.Sprintf("Invalid encryption configuration. Valid choices are on or off.\n")
 	}
-	if opt.LoggerVerbosity != "error" && opt.LoggerVerbosity != "info" && opt.LoggerVerbosity != "verbose" && opt.LoggerVerbosity != "debug" {
+	loggerVerbosity, ok := loggerVerbosityLut[opt.LoggerVerbosity]
+	if !ok {
 		errTxt += fmt.Sprintf("Invalid logger_verbosity configuration. Valid choices are error, info, verbose or debug.\n")
 	}
-	SetLoggerVerbosity(opt.LoggerVerbosity)
+	SetLoggerVerbosity(loggerVerbosity)
 	if opt.BackupMultipartChunksize != "" {
 		chunkSize, err := bytesize.Parse(opt.BackupMultipartChunksize)
 		if err != nil {
